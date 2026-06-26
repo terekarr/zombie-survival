@@ -150,10 +150,39 @@ C.addEventListener('mousemove', e => {
   const r = C.getBoundingClientRect();
   mx = e.clientX - r.left; my = e.clientY - r.top;
 });
-C.addEventListener('click', () => C.focus()); // re-focus on click
+
+// On-screen D-pad buttons (always work — no keyboard needed)
+const DPAD = [
+  {label:'↑', key:'w', x:72,  y:510},
+  {label:'↓', key:'s', x:72,  y:558},
+  {label:'←', key:'a', x:28,  y:534},
+  {label:'→', key:'d', x:116, y:534},
+];
+const DPAD_R = 18; // button radius
+
+function dpadHit(px, py) {
+  return DPAD.find(b => Math.hypot(px-b.x, py-b.y) < DPAD_R);
+}
+
 let shooting = false;
-C.addEventListener('mousedown', e => { if (e.button === 0) { shooting = true; C.focus(); } });
-C.addEventListener('mouseup',   e => { if (e.button === 0) shooting = false; });
+let dpadActive = null;
+
+C.addEventListener('mousedown', e => {
+  const r = C.getBoundingClientRect();
+  const px = e.clientX-r.left, py = e.clientY-r.top;
+  const btn = dpadHit(px, py);
+  if (btn) { dpadActive = btn; KEYS[btn.key] = true; }
+  else if (e.button === 0) shooting = true;
+  C.focus();
+});
+C.addEventListener('mouseup', e => {
+  if (dpadActive) { KEYS[dpadActive.key] = false; dpadActive = null; }
+  else shooting = false;
+});
+C.addEventListener('mouseleave', () => {
+  if (dpadActive) { KEYS[dpadActive.key] = false; dpadActive = null; }
+  shooting = false;
+});
 
 // ── HELPERS ────────────────────────────────────────────────────────────────
 function dist(a, b) { return Math.hypot(a.x - b.x, a.y - b.y); }
@@ -725,6 +754,20 @@ function drawVictory() {
   ctx.fillText('Press R to play again', 450, 360);
 }
 
+function drawDpad() {
+  for (const b of DPAD) {
+    const active = KEYS[b.key];
+    ctx.fillStyle   = active ? '#44cc4488' : '#11221188';
+    ctx.strokeStyle = active ? '#88ee88'   : '#335533';
+    ctx.lineWidth   = 2;
+    ctx.beginPath(); ctx.arc(b.x, b.y, DPAD_R, 0, Math.PI*2);
+    ctx.fill(); ctx.stroke();
+    ctx.fillStyle = active ? '#ffffff' : '#668855';
+    ctx.font = 'bold 16px sans-serif'; ctx.textAlign = 'center';
+    ctx.fillText(b.label, b.x, b.y + 6);
+  }
+}
+
 function draw() {
   ctx.clearRect(0, 0, 900, 600);
   drawMap();
@@ -734,6 +777,7 @@ function draw() {
   drawZombies();
   drawPlayer();
   drawFlashlight();
+  if (G && G.state === 'playing') drawDpad();
   drawHUD();
   drawNightMsg();
   if (G.state === 'daybreak') drawDaybreak();

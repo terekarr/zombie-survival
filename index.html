@@ -36,7 +36,7 @@ canvas { display:block; cursor:crosshair; }
   <button class="t-btn" onclick="startGame()">▶ DEPLOY SOLDIER</button>
 </div>
 
-<canvas id="c"></canvas>
+<canvas id="c" tabindex="0"></canvas>
 
 <script>
 const C = document.getElementById('c');
@@ -133,14 +133,19 @@ function initG() {
 let mx = C.width/2, my = C.height/2;
 
 // ── INPUT ──────────────────────────────────────────────────────────────────
-document.addEventListener('keydown', e => {
+const GAME_KEYS = new Set(['w','a','s','d','arrowup','arrowdown','arrowleft','arrowright']);
+window.addEventListener('keydown', e => {
+  const k = e.key.toLowerCase();
+  if (GAME_KEYS.has(k)) e.preventDefault(); // stop page scrolling
   if (!G) return;
-  G.player.keys[e.key.toLowerCase()] = true;
-  if (e.key === '1') switchWeapon('pistol');
-  if (e.key === '2') switchWeapon('shotgun');
-  if (e.key === '3') switchWeapon('rifle');
+  G.player.keys[k] = true;
+  if (k === '1') switchWeapon('pistol');
+  if (k === '2') switchWeapon('shotgun');
+  if (k === '3') switchWeapon('rifle');
 });
-document.addEventListener('keyup', e => { if (G) G.player.keys[e.key.toLowerCase()] = false; });
+window.addEventListener('keyup', e => {
+  if (G) G.player.keys[e.key.toLowerCase()] = false;
+});
 C.addEventListener('mousemove', e => {
   const r = C.getBoundingClientRect();
   mx = e.clientX - r.left; my = e.clientY - r.top;
@@ -736,7 +741,7 @@ function draw() {
 }
 
 // ── RESTART ────────────────────────────────────────────────────────────────
-document.addEventListener('keydown', e => {
+window.addEventListener('keydown', e => {
   if (e.key.toLowerCase() === 'r' && G && (G.state==='gameover'||G.state==='victory')) initG();
 });
 
@@ -753,6 +758,7 @@ function loop(ts) {
 // ── START ──────────────────────────────────────────────────────────────────
 function startGame() {
   document.getElementById('title').style.display = 'none';
+  C.focus(); // give canvas keyboard focus
   initG();
   requestAnimationFrame(ts => { last = ts; requestAnimationFrame(loop); });
 }

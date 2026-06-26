@@ -115,7 +115,6 @@ function initG() {
       ammo: { pistol: Infinity, shotgun: 0, rifle: 0 },
       fireTimer: 0,
       hitFlash: 0,
-      keys: {},
     },
 
     zombies: [],
@@ -132,26 +131,28 @@ function initG() {
 
 let mx = C.width/2, my = C.height/2;
 
-// ── INPUT ──────────────────────────────────────────────────────────────────
-const GAME_KEYS = new Set(['w','a','s','d','arrowup','arrowdown','arrowleft','arrowright']);
+// ── INPUT — global so it survives G resets ─────────────────────────────────
+const KEYS = {};
+const GAME_KEYS = new Set(['w','a','s','d','arrowup','arrowdown','arrowleft','arrowright',' ']);
 window.addEventListener('keydown', e => {
   const k = e.key.toLowerCase();
-  if (GAME_KEYS.has(k)) e.preventDefault(); // stop page scrolling
+  if (GAME_KEYS.has(k)) e.preventDefault();
+  KEYS[k] = true;
   if (!G) return;
-  G.player.keys[k] = true;
   if (k === '1') switchWeapon('pistol');
   if (k === '2') switchWeapon('shotgun');
   if (k === '3') switchWeapon('rifle');
+  if (k === 'r' && (G.state==='gameover'||G.state==='victory')) initG();
 });
-window.addEventListener('keyup', e => {
-  if (G) G.player.keys[e.key.toLowerCase()] = false;
-});
+window.addEventListener('keyup', e => { KEYS[e.key.toLowerCase()] = false; });
+
 C.addEventListener('mousemove', e => {
   const r = C.getBoundingClientRect();
   mx = e.clientX - r.left; my = e.clientY - r.top;
 });
+C.addEventListener('click', () => C.focus()); // re-focus on click
 let shooting = false;
-C.addEventListener('mousedown', e => { if (e.button === 0) shooting = true; });
+C.addEventListener('mousedown', e => { if (e.button === 0) { shooting = true; C.focus(); } });
 C.addEventListener('mouseup',   e => { if (e.button === 0) shooting = false; });
 
 // ── HELPERS ────────────────────────────────────────────────────────────────
@@ -263,10 +264,10 @@ function updatePlayer(dt) {
 
   // Movement
   let dx = 0, dy = 0;
-  if (p.keys['w'] || p.keys['arrowup'])    dy -= 1;
-  if (p.keys['s'] || p.keys['arrowdown'])  dy += 1;
-  if (p.keys['a'] || p.keys['arrowleft'])  dx -= 1;
-  if (p.keys['d'] || p.keys['arrowright']) dx += 1;
+  if (KEYS['w'] || KEYS['arrowup'])    dy -= 1;
+  if (KEYS['s'] || KEYS['arrowdown'])  dy += 1;
+  if (KEYS['a'] || KEYS['arrowleft'])  dx -= 1;
+  if (KEYS['d'] || KEYS['arrowright']) dx += 1;
   if (dx && dy) { dx *= 0.707; dy *= 0.707; }
 
   let nx = p.x + dx * p.spd * dt;
@@ -741,9 +742,6 @@ function draw() {
 }
 
 // ── RESTART ────────────────────────────────────────────────────────────────
-window.addEventListener('keydown', e => {
-  if (e.key.toLowerCase() === 'r' && G && (G.state==='gameover'||G.state==='victory')) initG();
-});
 
 // ── LOOP ───────────────────────────────────────────────────────────────────
 let last = 0;

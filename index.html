@@ -6,7 +6,7 @@
 <style>
 * { margin:0; padding:0; box-sizing:border-box; }
 body { background:#000; display:flex; align-items:center; justify-content:center; min-height:100vh; font-family:'Courier New',monospace; user-select:none; overflow:hidden; }
-canvas { display:block; cursor:crosshair; }
+canvas { display:block; cursor:crosshair; max-width:100vw; max-height:calc(100vh - 4px); }
 
 #title {
   position:fixed; inset:0; background:#000;
@@ -146,9 +146,17 @@ window.addEventListener('keydown', e => {
 });
 window.addEventListener('keyup', e => { KEYS[e.key.toLowerCase()] = false; });
 
-C.addEventListener('mousemove', e => {
+// Converts screen mouse position → canvas pixel position (handles any zoom/scale)
+function canvasXY(e) {
   const r = C.getBoundingClientRect();
-  mx = e.clientX - r.left; my = e.clientY - r.top;
+  return {
+    x: (e.clientX - r.left) * (C.width  / r.width),
+    y: (e.clientY - r.top)  * (C.height / r.height),
+  };
+}
+
+C.addEventListener('mousemove', e => {
+  const p = canvasXY(e); mx = p.x; my = p.y;
 });
 
 // On-screen D-pad buttons (always work — no keyboard needed)
@@ -168,16 +176,15 @@ let shooting = false;
 let dpadActive = null;
 
 C.addEventListener('mousedown', e => {
-  const r = C.getBoundingClientRect();
-  const px = e.clientX-r.left, py = e.clientY-r.top;
-  const btn = dpadHit(px, py);
+  const {x, y} = canvasXY(e);
+  const btn = dpadHit(x, y);
   if (btn) { dpadActive = btn; KEYS[btn.key] = true; }
   else if (e.button === 0) shooting = true;
   C.focus();
 });
-C.addEventListener('mouseup', e => {
+C.addEventListener('mouseup', () => {
   if (dpadActive) { KEYS[dpadActive.key] = false; dpadActive = null; }
-  else shooting = false;
+  shooting = false;
 });
 C.addEventListener('mouseleave', () => {
   if (dpadActive) { KEYS[dpadActive.key] = false; dpadActive = null; }

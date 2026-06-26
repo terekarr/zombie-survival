@@ -28,9 +28,9 @@ canvas { display:block; cursor:crosshair; max-width:100vw; max-height:calc(100vh
   <div class="t-title">ZOMBIE SURVIVAL</div>
   <div class="t-sub">MILITARY BASE · SURVIVE 10 NIGHTS</div>
   <div class="t-feats">
-    <div class="t-feat"><span>🎯</span>WASD + Mouse</div>
+    <div class="t-feat"><span>🖱️</span>Hold to Move</div>
     <div class="t-feat"><span>🔦</span>Flashlight</div>
-    <div class="t-feat"><span>🔫</span>3 Weapons</div>
+    <div class="t-feat"><span>🔫</span>Auto-Fire</div>
     <div class="t-feat"><span>🧟</span>10 Nights</div>
   </div>
   <button class="t-btn" onclick="startGame()">▶ DEPLOY SOLDIER</button>
@@ -159,37 +159,14 @@ C.addEventListener('mousemove', e => {
   const p = canvasXY(e); mx = p.x; my = p.y;
 });
 
-// On-screen D-pad buttons (always work — no keyboard needed)
-const DPAD = [
-  {label:'↑', key:'w', x:72,  y:510},
-  {label:'↓', key:'s', x:72,  y:558},
-  {label:'←', key:'a', x:28,  y:534},
-  {label:'→', key:'d', x:116, y:534},
-];
-const DPAD_R = 18; // button radius
-
-function dpadHit(px, py) {
-  return DPAD.find(b => Math.hypot(px-b.x, py-b.y) < DPAD_R);
-}
-
-let shooting = false;
-let dpadActive = null;
-
-C.addEventListener('mousedown', e => {
-  const {x, y} = canvasXY(e);
-  const btn = dpadHit(x, y);
-  if (btn) { dpadActive = btn; KEYS[btn.key] = true; }
-  else if (e.button === 0) shooting = true;
-  C.focus();
-});
-C.addEventListener('mouseup', () => {
-  if (dpadActive) { KEYS[dpadActive.key] = false; dpadActive = null; }
-  shooting = false;
-});
-C.addEventListener('mouseleave', () => {
-  if (dpadActive) { KEYS[dpadActive.key] = false; dpadActive = null; }
-  shooting = false;
-});
+// ── MOUSE CONTROLS ─────────────────────────────────────────────────────────
+// Hold LEFT button  → player moves toward cursor
+// Release           → player stops
+// Auto-fires at nearest zombie always
+let moving = false;
+C.addEventListener('mousedown', e => { if (e.button===0) moving = true; C.focus(); });
+C.addEventListener('mouseup',   () => { moving = false; });
+C.addEventListener('mouseleave',() => { moving = false; });
 
 // ── HELPERS ────────────────────────────────────────────────────────────────
 function dist(a, b) { return Math.hypot(a.x - b.x, a.y - b.y); }
@@ -295,35 +272,35 @@ function update(dt) {
 
 function updatePlayer(dt) {
   const p = G.player;
-  p.hitFlash = Math.max(0, p.hitFlash - dt);
+  p.hitFlash  = Math.max(0, p.hitFlash - dt);
   p.fireTimer = Math.max(0, p.fireTimer - dt);
 
-  // Movement
-  let dx = 0, dy = 0;
-  if (KEYS['w'] || KEYS['arrowup'])    dy -= 1;
-  if (KEYS['s'] || KEYS['arrowdown'])  dy += 1;
-  if (KEYS['a'] || KEYS['arrowleft'])  dx -= 1;
-  if (KEYS['d'] || KEYS['arrowright']) dx += 1;
-  if (dx && dy) { dx *= 0.707; dy *= 0.707; }
+  // MOVEMENT: hold left mouse button → walk toward cursor
+  const tdx = mx - p.x, tdy = my - p.y, td = Math.hypot(tdx, tdy);
+  if (moving && td > 20) {
+    let nx = p.x + (tdx/td) * p.spd * dt;
+    let ny = p.y + (tdy/td) * p.spd * dt;
+    nx = clamp(nx, p.r, 900-p.r);
+    ny = clamp(ny, GY+p.r, C.height-p.r);
+    if (!obsCollide(nx, p.y, p.r)) p.x = nx;
+    if (!obsCollide(p.x, ny, p.r)) p.y = ny;
+  }
 
-  let nx = p.x + dx * p.spd * dt;
-  let ny = p.y + dy * p.spd * dt;
+  // AIM: face nearest zombie, else face mouse
+  let aimTarget = null, bestD = Infinity;
+  for (const z of G.zombies) {
+    if (z.dead) continue;
+    const d = dist(p, z);
+    if (d < bestD) { bestD = d; aimTarget = z; }
+  }
+  p.angle = aimTarget
+    ? Math.atan2(aimTarget.y - p.y, aimTarget.x - p.x)
+    : Math.atan2(my - p.y, mx - p.x);
 
-  // Boundary
-  nx = clamp(nx, p.r, 900-p.r);
-  ny = clamp(ny, GY+p.r, C.height-p.r);
+  // AUTO-FIRE: shoot nearest zombie in range automatically
+  if (p.fireTimer === 0 && aimTarget && bestD < 280) shoot();
 
-  // Obstacle collision (slide along walls)
-  if (!obsCollide(nx, p.y, p.r)) p.x = nx;
-  if (!obsCollide(p.x, ny, p.r)) p.y = ny;
-
-  // Aim angle
-  p.angle = Math.atan2(my - p.y, mx - p.x);
-
-  // Shoot
-  if (shooting && p.fireTimer === 0) shoot();
-
-  // Pickup collection
+  // Pickups
   for (let i = G.pickups.length-1; i >= 0; i--) {
     const pk = G.pickups[i];
     if (dist(p, pk) < p.r + 18) {
@@ -761,20 +738,6 @@ function drawVictory() {
   ctx.fillText('Press R to play again', 450, 360);
 }
 
-function drawDpad() {
-  for (const b of DPAD) {
-    const active = KEYS[b.key];
-    ctx.fillStyle   = active ? '#44cc4488' : '#11221188';
-    ctx.strokeStyle = active ? '#88ee88'   : '#335533';
-    ctx.lineWidth   = 2;
-    ctx.beginPath(); ctx.arc(b.x, b.y, DPAD_R, 0, Math.PI*2);
-    ctx.fill(); ctx.stroke();
-    ctx.fillStyle = active ? '#ffffff' : '#668855';
-    ctx.font = 'bold 16px sans-serif'; ctx.textAlign = 'center';
-    ctx.fillText(b.label, b.x, b.y + 6);
-  }
-}
-
 function draw() {
   ctx.clearRect(0, 0, 900, 600);
   drawMap();
@@ -784,7 +747,6 @@ function draw() {
   drawZombies();
   drawPlayer();
   drawFlashlight();
-  if (G && G.state === 'playing') drawDpad();
   drawHUD();
   drawNightMsg();
   if (G.state === 'daybreak') drawDaybreak();
